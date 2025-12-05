@@ -1,0 +1,9 @@
++!q::Send {WheelUp}     ; Shift + Alt + Q = cuộn lên
++!a::Send {WheelDown}   ; Shift + Alt + A = cuộn xuống
+;---------------------------------------------------------------
+; Win + Shift + A → Bật/Tắt "Always On Top" cửa sổ đang chọn
+;---------------------------------------------------------------
+#+a::
+MouseGetPos, , , id, control
+WinSet, AlwaysOnTop, Toggle, ahk_id %id%
+return
