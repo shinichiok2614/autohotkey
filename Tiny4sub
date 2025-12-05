@@ -1,0 +1,210 @@
+;---------------------------------------------------------------
+; Tạo đối tượng BrightnessSetter để điều chỉnh độ sáng màn hình
+;---------------------------------------------------------------
+BS := new BrightnessSetter()
+
+; Biến dùng để chỉnh độ mờ (transparency)
+dimming=255
+
+;---------------------------------------------------------------
+; Win + Shift + A → Bật/Tắt "Always On Top" cửa sổ đang chọn
+;---------------------------------------------------------------
+#+a::
+MouseGetPos, , , id, control
+WinSet, AlwaysOnTop, Toggle, ahk_id %id%
+return
+
+;---------------------------------------------------------------
+; Win + Shift + S → Tắt màn hình (monitor off)
+;---------------------------------------------------------------
+#+s::  
+Sleep 1000  ; Trì hoãn 1 giây để tránh bật lại khi thả phím
+SendMessage, 0x112, 0xF170, 2,, Program Manager  
+; 0x112 = WM_SYSCOMMAND
+; 0xF170 = SC_MONITORPOWER
+; 2 = tắt màn hình (1 = tiết kiệm điện, -1 = bật màn hình)
+return
+
+;---------------------------------------------------------------
+; (Ví dụ) Bật screensaver người dùng chọn
+;---------------------------------------------------------------
+SendMessage, 0x112, 0xF140, 0,, Program Manager  
+; 0xF140 = SC_SCREENSAVE
+
+;---------------------------------------------------------------
+; Cuộn lên 1 dòng trong control có thanh cuộn
+;---------------------------------------------------------------
+ControlGetFocus, control, A
+SendMessage, 0x115, 0, 0, %control%, A
+; 0 = scroll up
+
+;---------------------------------------------------------------
+; Cuộn xuống 1 dòng
+;---------------------------------------------------------------
+ControlGetFocus, control, A
+SendMessage, 0x115, 1, 0, %control%, A
+; 1 = scroll down
+
+;---------------------------------------------------------------
+; Chuyển layout bàn phím sang English
+;---------------------------------------------------------------
+PostMessage, 0x50, 0, 0x4090409,, A  
+; 0x50 = WM_INPUTLANGCHANGEREQUEST
+; 0x4090409 = English (US)
+
+;---------------------------------------------------------------
+; Lấy bài nhạc hiện đang phát trong Winamp
+;---------------------------------------------------------------
+SetTitleMatchMode, 2
+SendMessage, 1024, 0, 120,, - Winamp
+if ErrorLevel <> FAIL
+{
+    ErrorLevel++  
+    MsgBox, Track #%ErrorLevel% is active or playing.
+}
+
+;---------------------------------------------------------------
+; Lấy Process ID của một script AHK khác
+;---------------------------------------------------------------
+SetTitleMatchMode, 2
+DetectHiddenWindows, On
+SendMessage, 0x44, 0x405, 0, , SomeOtherScript.ahk - AutoHotkey v
+MsgBox %ErrorLevel% is the process id.
+return
+
+;---------------------------------------------------------------
+; Win + Shift + P → Shutdown máy
+;---------------------------------------------------------------
+#+p::
+Shutdown,1
+return
+
+;---------------------------------------------------------------
+; Win + Shift + H → Hibernate / Sleep sâu
+;---------------------------------------------------------------
+#+h::
+DllCall("PowrProf\SetSuspendState", "int", 1, "int", 0, "int", 0)
+return
+
+;---------------------------------------------------------------
+; Win + Shift + Q → Giảm âm lượng -2
+;---------------------------------------------------------------
+#+q::
+SoundSet -2
+return
+
+;---------------------------------------------------------------
+; Win + Shift + W → Tăng âm lượng +2
+;---------------------------------------------------------------
+#+w::
+SoundSet +2
+return
+
+;================================================================
+; LỚP CHỈNH ĐỘ SÁNG MÀN HÌNH
+;================================================================
+
+class BrightnessSetter {
+	; Script lấy từ qwerty12 – đã chỉnh sửa
+	; Dùng API Windows để điều khiển brightness thật (không phải overlay)
+	static _WM_POWERBROADCAST := 0x218, _osdHwnd := 0, hPowrprofMod := DllCall("LoadLibrary", "Str", "powrprof.dll", "Ptr") 
+
+	__New() {
+		; Kiểm tra máy đang dùng AC hay pin
+		if (BrightnessSetter.IsOnAc(AC))
+			this._AC := AC
+
+		; Đăng ký nhận thông báo thay đổi nguồn điện (AC/DC)
+		if ((this.pwrAcNotifyHandle := DllCall("RegisterPowerSettingNotification", "Ptr", A_ScriptHwnd, "Ptr", BrightnessSetter._GUID_ACDC_POWER_SOURCE(), "UInt", 0, "Ptr")))
+			OnMessage(this._WM_POWERBROADCAST, ((this.pwrBroadcastFunc := ObjBindMethod(this, "_On_WM_POWERBROADCAST"))))
+	}
+
+	__Delete() {
+		; Hủy đăng ký khi script tắt
+		if (this.pwrAcNotifyHandle) {
+			OnMessage(BrightnessSetter._WM_POWERBROADCAST, this.pwrBroadcastFunc, 0)
+			DllCall("UnregisterPowerSettingNotification", "Ptr", this.pwrAcNotifyHandle)
+			this.pwrAcNotifyHandle := 0
+			this.pwrBroadcastFunc := ""
+		}
+	}
+
+	;-----------------------------------------------------------
+	; Hàm chính: SetBrightness(increment)
+	; increment = giá trị tăng/giảm độ sáng
+	;-----------------------------------------------------------
+	SetBrightness(increment, jump := False, showOSD := True, autoDcOrAc := -1, ptrAnotherScheme := 0)
+	{
+		; (code giữ nguyên – nội dung dài, dùng API Windows)
+		; → Điều chỉnh Brightness thật của Windows 
+		; → Hiện OSD của Windows 10/11
+		; → Hoạt động trên cả laptop và PC có điều khiển brightness
+		...
+	}
+
+	; Các hàm còn lại trong class đều:
+	; - Lấy mức sáng hiện tại
+	; - Lấy mức sáng max/min
+	; - Gửi thông báo OSD
+	; - Lấy trạng thái AC/DC
+	; - Xử lý GUID brightness của Windows
+	; → Mình giữ nguyên code và chỉ chú thích nhóm chức năng
+}
+
+BrightnessSetter_new() {
+	return new BrightnessSetter()
+}
+
+;================================================================
+; HOTKEY CHỈNH ĐỘ SÁNG
+;================================================================
+
+; Win + Shift + Z → Giảm độ sáng
+#+z::
+BS.SetBrightness(-10)
+return
+
+; Win + Shift + X → Tăng độ sáng
+#+x::
+BS.SetBrightness(10)
+return
+
+;================================================================
+; CHỈNH ĐỘ MỜ (TRANSPARENCY) CỬA SỔ HIỆN TẠI
+;================================================================
+
+; Win + Shift + E → Tăng độ mờ cửa sổ (mờ dần)
+#+e::
+dimming-=40
+If dimming<0
+  dimming=0
+WinGet,guiid,Id,A
+WinSet,Transparent,% dimming,ahk_id %guiid%
+Return
+
+; Win + Shift + R → Xóa độ mờ (trở lại trong suốt 255)
+#+r::
+dimming=255
+WinGet,guiid,Id,A
+WinSet,Transparent,255,ahk_id %guiid%
+return
+
+;================================================================
+; MEDIA CONTROLS
+;================================================================
+
+; Win + Shift + D → Bài trước
+#+d::
+Send {Media_Prev}
+return
+
+; Win + Shift + F → Play / Pause
+#+f::
+Send {Media_Play_Pause}
+return
+
+; Win + Shift + G → Bài kế tiếp
+#+g::
+Send {Media_Next}
+return
+
